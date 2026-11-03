@@ -1,0 +1,10 @@
+# personal location data never goes into git
+Timeline.json
+web/data/
+# downloaded reference data and local env
+pipeline/geonames/
+.venv/
+.DS_Store
+pipeline/cache/
+pipeline/home_names.json
+examples/out/

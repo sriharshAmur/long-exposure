@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Long Exposure</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <link href="style.css" rel="stylesheet">
+</head>
+<body>
+  <div id="landing" hidden>
+    <img class="landing-preview" src="img/preview.jpg" alt="" aria-hidden="true">
+    <div class="landing-inner">
+      <p class="brand">Long Exposure</p>
+      <h1 class="landing-title">Every place your phone remembers, in one picture.</h1>
+      <p class="landing-lede">Drop in your Google Maps Timeline and get a story of the years: your homes, your trips, your favourite places, how you moved, and every single day on a calendar you can walk through.</p>
+
+      <div data-step="drop">
+        <label id="dropzone" class="dropzone" for="file">
+          <input id="file" type="file" accept=".json,application/json" hidden>
+          <span class="dz-big">Drop your Timeline.json here</span>
+          <span class="dz-small">or click to choose the file</span>
+        </label>
+        <p id="drop-error" class="drop-error" role="alert" hidden></p>
+        <p class="private">Everything happens in this browser tab. Your location history is never uploaded anywhere.</p>
+        <div class="landing-actions">
+          <button class="ghost" id="try-demo" type="button">See an example first</button>
+        </div>
+        <div id="saved" class="saved" hidden>
+          <p>Welcome back. Your story from <span id="saved-when"></span> is still saved in this browser.</p>
+          <button class="ghost" id="open-saved" type="button">Open my story</button>
+          <button class="link" id="forget-saved" type="button">Delete it from this browser</button>
+        </div>
+        <details class="howto">
+          <summary>How do I get my Timeline.json?</summary>
+          <p>Google keeps your Timeline on your phone, so the export happens there.</p>
+          <p><strong>Android:</strong> open Settings, then Location, then Location services, then Timeline, and tap Export Timeline data.</p>
+          <p><strong>iPhone:</strong> open the Google Maps app, tap your profile picture, then Settings, then Personal content, and tap Export Timeline data.</p>
+          <p>Save the file, send it to your computer if you like, and drop it above. It works on your phone too.</p>
+        </details>
+      </div>
+
+      <div data-step="working" hidden>
+        <div class="working"><i></i><span id="work-msg">Opening the file</span></div>
+      </div>
+
+      <div data-step="names" hidden>
+        <p class="ready">Your timeline is ready: <span id="names-summary"></span></p>
+        <p>Want real names for your places, like the café you always go to, instead of just the town? We can ask OpenStreetMap about your <span id="names-count"></span> most-visited spots. That sends only those coordinates to OpenStreetMap's free service and takes about <span id="names-mins"></span> minutes, one place per second.</p>
+        <div class="landing-actions">
+          <button class="solid" id="names-go" type="button">Name my places</button>
+          <button class="ghost" id="names-skip" type="button">Skip and show my story</button>
+        </div>
+      </div>
+
+      <div data-step="naming" hidden>
+        <p id="naming-msg">Starting</p>
+        <div class="progress"><i id="naming-bar"></i></div>
+        <button class="ghost" id="naming-stop" type="button">Stop and show my story</button>
+      </div>
+
+      <p class="credit">Made by <a href="https://github.com/sriharshAmur">Sriharsh Amur</a>. Open source on <a href="https://github.com/sriharshAmur/long-exposure">GitHub</a>.</p>
+    </div>
+  </div>
+  <div id="map" aria-label="Map of every recorded location"></div>
+  <div id="map-veil"></div>
+
+  <div id="year-dial" aria-hidden="true"><span id="year-num">2014</span></div>
+
+  <main id="story">
+    <section class="stop hero" data-stop="hero">
+      <h1 id="hero-title">Years, in one long exposure</h1>
+      <p class="lede" id="hero-lede"></p>
+      <dl class="hero-facts" id="hero-facts"></dl>
+      <button class="ghost" id="replay" type="button">Replay the years</button>
+      <p class="scroll-hint">Scroll to walk through it</p>
+    </section>
+
+    <section class="stop" data-stop="density">
+      <h2>How closely your phone was paying attention</h2>
+      <div class="prose" id="density-prose"></div>
+      <figure class="chart" id="density-chart" aria-label="Location points recorded per month"></figure>
+    </section>
+
+    <section class="stop" data-stop="homes">
+      <h2>The front doors</h2>
+      <div class="prose" id="homes-prose"></div>
+      <ol class="homes" id="homes-list"></ol>
+    </section>
+
+    <section class="stop" data-stop="move">
+      <h2>How you got around</h2>
+      <div class="prose" id="move-prose"></div>
+      <div class="multiples" id="move-chart"></div>
+    </section>
+
+    <section class="stop" data-stop="rhythm">
+      <h2>Where the hours went</h2>
+      <div class="prose" id="rhythm-prose"></div>
+      <figure class="chart" id="home-share" aria-label="Share of recorded time spent at home, per month"></figure>
+      <h3>An average week, hour by hour</h3>
+      <p class="caption">Brighter means more of that hour was spent away from home.</p>
+      <figure class="chart" id="week-grid" aria-label="Share of time away from home by weekday and hour"></figure>
+    </section>
+
+    <section class="stop" data-stop="places">
+      <h2>Your places</h2>
+      <div class="prose" id="places-prose"></div>
+      <h3>Where the hours went, by kind of place</h3>
+      <figure class="chart" id="kind-chart" aria-label="Hours spent by kind of place"></figure>
+      <h3>The fifteen places with most of your time</h3>
+      <ol class="places" id="place-list"></ol>
+    </section>
+
+    <section class="stop" data-stop="world">
+      <h2>Stamps in the passport</h2>
+      <div class="prose" id="world-prose"></div>
+      <ol class="countries" id="country-list"></ol>
+    </section>
+
+    <section class="stop" data-stop="trips">
+      <h2>The trips</h2>
+      <div class="prose" id="trips-prose"></div>
+      <ul class="trips" id="trip-list"></ul>
+    </section>
+
+    <section class="stop" data-stop="edges">
+      <h2>The edges of your map</h2>
+      <div class="prose" id="edges-prose"></div>
+      <div class="edges" id="edges"></div>
+    </section>
+
+    <section class="stop" data-stop="years">
+      <h2>Year by year</h2>
+      <p class="caption">Pick a year. The map shows only that year.</p>
+      <div class="year-tabs" id="year-tabs" role="group" aria-label="Choose a year"></div>
+      <div class="year-card" id="year-card" aria-live="polite"></div>
+    </section>
+
+    <section class="stop wall" data-stop="wall">
+      <h2>Every day, one square</h2>
+      <div class="prose" id="wall-prose"></div>
+      <div class="wall-legend" id="wall-legend"></div>
+      <div id="calendar" role="grid" aria-label="Calendar of every recorded day"></div>
+      <div class="wall-actions">
+        <button class="ghost" id="random-day" type="button">Take me to a random day away</button>
+      </div>
+      <h3 id="otd-title">On this day</h3>
+      <ul class="otd" id="otd"></ul>
+    </section>
+
+    <footer class="colophon">
+      <p class="demo-note">You're looking at a made-up person. <a href="./?upload">Try it with your own Timeline</a>.</p>
+      <p><a href="./?upload">Use a different file</a>. Made by <a href="https://github.com/sriharshAmur">Sriharsh Amur</a>, open source on <a href="https://github.com/sriharshAmur/long-exposure">GitHub</a>.</p>
+      <p>Built from a Google Maps Timeline export. The coordinates were turned into place names offline using GeoNames, and none of your data leaves this machine except the map tiles, which come from CARTO and OpenStreetMap.</p>
+    </footer>
+  </main>
+
+  <aside id="day-panel" hidden aria-live="polite">
+    <button class="close" id="day-close" type="button" aria-label="Close day view">×</button>
+    <p class="day-weekday" id="day-weekday"></p>
+    <h3 id="day-date"></h3>
+    <p id="day-places"></p>
+    <dl class="day-stats" id="day-stats"></dl>
+    <div class="day-scale"><span>00:00</span><i></i><span>24:00</span></div>
+    <div class="day-nav">
+      <button class="ghost" id="day-prev" type="button">Previous day</button>
+      <button class="ghost" id="day-next" type="button">Next day</button>
+    </div>
+  </aside>
+
+  <div id="tip" role="tooltip" hidden></div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="js/main.js" type="module"></script>
+</body>
+</html>
