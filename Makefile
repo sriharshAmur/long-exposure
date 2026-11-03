@@ -1,4 +1,4 @@
-.PHONY: setup data demo serve
+.PHONY: setup data demo serve dist deploy
 
 setup:
 	uv venv -q --python 3.12 .venv
@@ -23,3 +23,12 @@ demo:
 	.venv/bin/python -I examples/fake_timeline.py examples/out/Timeline.json examples/out/nominatim.json
 	.venv/bin/python -I pipeline/build.py examples/out/Timeline.json web/demo
 	.venv/bin/python -I pipeline/enrich.py web/demo/data.json 400 --cache examples/out/nominatim.json --names none --offline
+
+# Cloudflare: the site lives under /long-exposure/, and personal data never ships
+dist:
+	rm -rf dist && mkdir -p dist/long-exposure
+	rsync -a --exclude data/ web/ dist/long-exposure/
+	test ! -e dist/long-exposure/data
+
+deploy: dist
+	npx wrangler deploy

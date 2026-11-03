@@ -1,0 +1,8 @@
+{
+  // Served at https://sriharsh.com/long-exposure/ as a Worker with static assets.
+  // `make dist` copies web/ into dist/long-exposure/, leaving out web/data/ (your personal data).
+  "name": "long-exposure",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./dist", "not_found_handling": "404-page" },
+  "routes": [{ "pattern": "sriharsh.com/long-exposure*", "zone_name": "sriharsh.com" }]
+}

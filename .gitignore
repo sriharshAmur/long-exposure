@@ -8,3 +8,5 @@ pipeline/geonames/
 pipeline/cache/
 pipeline/home_names.json
 examples/out/
+dist/
+.wrangler/
