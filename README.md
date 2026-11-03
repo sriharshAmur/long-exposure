@@ -4,7 +4,7 @@
 
 Google Maps has been quietly keeping a diary of everywhere you've been, sometimes for over a decade. Long Exposure turns that diary into a story you can scroll through: every point you've ever recorded glows on a night map like a long-exposure photograph, and the years unfold around it.
 
-### [Try it now: sriharshamur.github.io/long-exposure](https://sriharshamur.github.io/long-exposure/)
+### [Try it now: sriharshamur.com/long-exposure](https://www.sriharshamur.com/long-exposure/)
 
 Drop in your `Timeline.json` and you're done. No sign-up, no upload, no server. It all runs in your browser tab.
 
@@ -40,7 +40,7 @@ Google now keeps your Timeline on your phone, so you export it from there.
 - **Android:** open Settings, then Location, then Location services, then Timeline, and tap **Export Timeline data**.
 - **iPhone:** open the Google Maps app, tap your profile picture, then Settings, then Personal content, and tap **Export Timeline data**.
 
-Then open [the site](https://sriharshamur.github.io/long-exposure/) and drop the file in. A file with more than 10 years of history takes a few seconds.
+Then open [the site](https://www.sriharshamur.com/long-exposure/) and drop the file in. A file with more than 10 years of history takes a few seconds.
 
 ## Your data stays yours
 
