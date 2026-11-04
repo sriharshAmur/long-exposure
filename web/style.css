@@ -353,10 +353,15 @@ body.on-landing { overflow: hidden; }
 #landing a, .colophon a { color: var(--dust); }
 @media (prefers-reduced-motion: reduce) { .working i { animation: none; } }
 .landing-preview {
-  position: absolute; right: 0; top: 0; height: 100%; width: 62%; object-fit: cover; object-position: 70% 50%;
+  /* A clean map of the made-up example; starts just right of the text and never shows UI text. */
+  position: absolute; top: 0; right: 0; height: 100%;
+  left: calc(max(0px, (100vw - 1440px) / 2) + 520px); width: auto;
+  object-fit: cover; object-position: 18% 45%;
   opacity: .9; pointer-events: none;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
-  mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
 }
+/* On wide screens the text and the map sit in one centred frame instead of hugging the left edge. */
+@media (min-width: 1500px) { .landing-inner { margin-left: calc((100vw - 1440px) / 2); } }
 .landing-inner { position: relative; }
-@media (max-width: 860px) { .landing-preview { width: 100%; height: 40vh; top: auto; bottom: 0; opacity: .35; -webkit-mask-image: linear-gradient(0deg, #000, transparent); mask-image: linear-gradient(0deg, #000, transparent); } }
+@media (max-width: 860px) { .landing-preview { left: 0; width: 100%; height: 40vh; top: auto; bottom: 0; opacity: .35; -webkit-mask-image: linear-gradient(0deg, #000, transparent); mask-image: linear-gradient(0deg, #000, transparent); } }
