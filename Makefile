@@ -31,7 +31,8 @@ demo:
 # Cloudflare: the site lives under /long-exposure/, and personal data never ships
 dist:
 	rm -rf dist && mkdir -p dist/long-exposure
-	rsync -a --exclude data/ web/ dist/long-exposure/
+	rsync -a --exclude data/ --exclude _headers --exclude .DS_Store web/ dist/long-exposure/
+	cp web/_headers dist/_headers
 	test ! -e dist/long-exposure/data
 
 deploy: dist

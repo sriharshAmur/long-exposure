@@ -19,8 +19,23 @@ const saveStory = (v) => idb("readwrite", (s) => s.put(v, "me")).catch(() => {})
 const loadStory = () => idb("readonly", (s) => s.get("me")).catch(() => null);
 export const forgetStory = () => idb("readwrite", (s) => s.delete("me"));
 
+// MapLibre is only needed once a story opens, so it stays off the landing page's critical path
+const MAPLIBRE = new URL("../vendor/maplibre-gl-4.7.1/", import.meta.url);
+let maplibreP = null;
+function loadMaplibre() {
+  const add = (tag, attrs, before) => new Promise((res, rej) => {
+    const el = Object.assign(document.createElement(tag), attrs, { onload: res, onerror: () => rej(new Error(`Couldn't load ${attrs.src || attrs.href}`)) });
+    before ? before.before(el) : document.head.append(el);
+  });
+  // the stylesheet goes before style.css so our overrides of the map controls still win
+  return (maplibreP ??= Promise.all([
+    add("link", { rel: "stylesheet", href: new URL("maplibre-gl.css", MAPLIBRE).href }, document.querySelector('link[href="style.css"]')),
+    add("script", { src: new URL("maplibre-gl.js", MAPLIBRE).href }),
+  ]).catch((e) => { maplibreP = null; throw e; }));
+}
+
 async function start(data, tracks, mode) {
-  globalThis.__LE = { data, tracks: typeof tracks === "function" ? tracks : () => Promise.resolve(tracks), mode };
+  globalThis.__LE = { data, tracks: typeof tracks === "function" ? tracks : () => Promise.resolve(tracks), mode, maplibre: loadMaplibre };
   $("#landing").classList.add("gone");
   document.body.classList.remove("on-landing");
   try { await import("../app.js"); } catch (e) {
@@ -33,6 +48,8 @@ async function start(data, tracks, mode) {
 }
 
 async function startDemo() {
+  // fetch the story code alongside the data; app.js asks for MapLibre once the hero text is on screen
+  document.head.append(Object.assign(document.createElement("link"), { rel: "modulepreload", href: new URL("../app.js", import.meta.url).href }));
   const data = await (await fetch("demo/data.json")).json();
   start(data, () => fetch("demo/tracks.json").then((r) => r.json()), "demo");
 }
@@ -46,6 +63,7 @@ function showError(msg) {
 }
 
 function processFile(file) {
+  loadMaplibre().catch(() => {});
   show("working");
   $("#work-msg").textContent = "Opening the file";
   const w = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });

@@ -4,15 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Long Exposure</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <!-- the two faces used above the fold; MapLibre's CSS and JS are loaded by js/main.js once a story opens -->
+  <link rel="preload" href="fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/familjen-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link href="style.css" rel="stylesheet">
 </head>
 <body>
   <div id="landing" hidden>
-    <img class="landing-preview" src="img/preview.jpg" alt="" aria-hidden="true">
+    <picture>
+      <source type="image/avif" srcset="img/preview-1160.avif 1160w, img/preview.avif 2320w" sizes="(max-width: 860px) 100vw, 142vh">
+      <img class="landing-preview" src="img/preview.jpg" alt="" aria-hidden="true">
+    </picture>
     <div class="landing-inner">
       <p class="brand">Long Exposure</p>
       <h1 class="landing-title">Every place your phone remembers, in one picture.</h1>
@@ -174,7 +177,6 @@
 
   <div id="tip" role="tooltip" hidden></div>
 
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="js/main.js" type="module"></script>
 </body>
 </html>

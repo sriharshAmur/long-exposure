@@ -1,0 +1,21 @@
+# Browser caching for sriharsh.com/long-exposure. `make dist` copies this file to dist/_headers,
+# the root of the Workers assets directory, so the paths below are relative to the site root.
+# Anything not listed (index.html, app.js, js/*, style.css) keeps the default
+# `public, max-age=0, must-revalidate`: those names aren't hashed and the ES modules import each other,
+# so any max-age could pair a fresh main.js with a stale app.js after a deploy.
+
+# Versioned directory: a new MapLibre goes in a new directory, so this never changes in place.
+/long-exposure/vendor/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Purely visual and rarely changed; a stale copy is harmless.
+/long-exposure/fonts/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=31536000
+/long-exposure/img/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+# Large but read by our own code, so kept short: if their shape ever changes, give them a new path.
+/long-exposure/geo/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+/long-exposure/demo/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400

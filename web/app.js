@@ -10,7 +10,8 @@ const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const narrow = () => matchMedia("(max-width: 860px)").matches;
 
 const $ = (s) => document.querySelector(s);
-const fmt = (n) => Math.round(n).toLocaleString("en-GB");
+const nf = new Intl.NumberFormat("en-GB"); // one formatter: toLocaleString builds a new one per call
+const fmt = (n) => nf.format(Math.round(n));
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const D = (k) => new Date(k + "T00:00:00Z");
@@ -142,7 +143,31 @@ function classify(k) {
   return "home";
 }
 
+/* ------------------------------------------------------------ hero */
+// filled in before MapLibre and the basemap load, so the first screen never waits on them
+const yearDial = $("#year-dial"), yearNum = $("#year-num");
+const kmTotal = S.km_total;
+$("#hero-lede").innerHTML =
+  `Since ${dayLong(S.first)} your phone has noted where you were <strong>${fmt(S.observations)}</strong> times. ` +
+  `Here they all are at once, every point a little light left on the map.`;
+const spanYears = Math.round(daysBetween(S.first, S.last) / 365.25);
+const NUM = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen", "Twenty"];
+$("#hero-title").textContent = `${NUM[spanYears] ?? spanYears} ${spanYears === 1 ? "year" : "years"}, in one long exposure`;
+document.title = `Long Exposure: ${spanYears} years of where you've been`;
+const facts = [
+  [fmt(S.days_with_data), "days on record"],
+  [fmt(S.cities), "towns and cities"],
+  [S.countries, "countries"],
+  [fmt(kmTotal), "kilometres travelled"],
+  [`${(kmTotal / EARTH).toFixed(1)}×`, "around the Earth"],
+  [homes.length, "front doors"],
+];
+$("#hero-facts").innerHTML = facts.map(([v, l]) => `<div><dt>${l}</dt><dd>${v}</dd></div>`).join("");
+
 /* ------------------------------------------------------------ map */
+// let the hero paint before MapLibre's 800 KB starts competing with it for the network (dropped files already started it)
+await new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
+await LE.maplibre();
 const map = new maplibregl.Map({
   container: "map",
   style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
@@ -307,26 +332,7 @@ function setPins(items) {
   });
 }
 
-/* ------------------------------------------------------------ hero */
-const yearDial = $("#year-dial"), yearNum = $("#year-num");
-const kmTotal = S.km_total;
-$("#hero-lede").innerHTML =
-  `Since ${dayLong(S.first)} your phone has noted where you were <strong>${fmt(S.observations)}</strong> times. ` +
-  `Here they all are at once, every point a little light left on the map.`;
-const spanYears = Math.round(daysBetween(S.first, S.last) / 365.25);
-const NUM = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen", "Twenty"];
-$("#hero-title").textContent = `${NUM[spanYears] ?? spanYears} ${spanYears === 1 ? "year" : "years"}, in one long exposure`;
-document.title = `Long Exposure: ${spanYears} years of where you've been`;
-const facts = [
-  [fmt(S.days_with_data), "days on record"],
-  [fmt(S.cities), "towns and cities"],
-  [S.countries, "countries"],
-  [fmt(kmTotal), "kilometres travelled"],
-  [`${(kmTotal / EARTH).toFixed(1)}×`, "around the Earth"],
-  [homes.length, "front doors"],
-];
-$("#hero-facts").innerHTML = facts.map(([v, l]) => `<div><dt>${l}</dt><dd>${v}</dd></div>`).join("");
-
+/* ------------------------------------------------------------ replay */
 let replaying = false;
 async function replay() {
   if (replaying) return;
@@ -342,6 +348,9 @@ async function replay() {
   replaying = false;
 }
 $("#replay").addEventListener("click", () => { fit(worldBox, { maxZoom: 4 }); replay(); });
+
+// let the map draw its first frame before the rest of the story is built (nothing above calls into what follows)
+await new Promise((r) => setTimeout(r));
 
 /* ------------------------------------------------------------ density */
 {
@@ -834,30 +843,34 @@ let selectedRect = null;
   const cal = $("#calendar");
   const y0 = +S.first.slice(0, 4), y1 = +S.last.slice(0, 4);
   const cell = 7, gap = 1.5, step = cell + gap;
+  // thousands of squares: one markup string per year and three listeners on the wall, not three per square
   for (let y = y0; y <= y1; y++) {
     const row = html("div", { class: "cal-year" }, `<span>${y}</span>`);
     const s = svg("svg", { viewBox: `0 0 ${53 * step} ${7 * step}`, role: "row", "aria-label": String(y) });
     const jan1 = D(`${y}-01-01`);
     const off = (jan1.getUTCDay() + 6) % 7;
+    let rects = "";
     for (let d = new Date(jan1); d.getUTCFullYear() === y; d.setUTCDate(d.getUTCDate() + 1)) {
       const k = key(d);
       if (k < S.first || k > S.last) continue;
       const idx = Math.round((d - jan1) / 864e5) + off;
       const c = classify(k);
-      const r = svg("rect", { x: Math.floor(idx / 7) * step, y: (idx % 7) * step, width: cell, height: cell, rx: 1.5, fill: CLS[c].fill }, s);
-      if (c !== "none") {
-        dayRects[k] = r;
-        r.setAttribute("tabindex", "-1");
-        hover(r, () => {
-          const dd = data.days[k];
-          const names = dd.c.slice(0, 3).map((i) => cities[i].name);
-          return `<b>${dayLong(k)}</b><br>${names.join(", ") || "<span>Somewhere unnamed</span>"}${dd.km > 1 ? `<br><span>${fmt(dd.km)} km moved</span>` : ""}`;
-        });
-        r.addEventListener("click", () => openDay(k));
-      }
+      rects += `<rect x="${Math.floor(idx / 7) * step}" y="${(idx % 7) * step}" width="${cell}" height="${cell}" rx="1.5" fill="${CLS[c].fill}"${c !== "none" ? ` data-k="${k}" tabindex="-1"` : ""}/>`;
     }
+    s.innerHTML = rects;
+    for (const r of s.querySelectorAll("[data-k]")) dayRects[r.dataset.k] = r;
     row.append(s); cal.append(row);
   }
+  const dayOf = (e) => e.target.dataset?.k;
+  cal.addEventListener("pointermove", (e) => {
+    const k = dayOf(e);
+    if (!k) return hideTip();
+    const dd = data.days[k];
+    const names = dd.c.slice(0, 3).map((i) => cities[i].name);
+    showTip(e, `<b>${dayLong(k)}</b><br>${names.join(", ") || "<span>Somewhere unnamed</span>"}${dd.km > 1 ? `<br><span>${fmt(dd.km)} km moved</span>` : ""}`);
+  });
+  cal.addEventListener("pointerleave", hideTip);
+  cal.addEventListener("click", (e) => { const k = dayOf(e); if (k) openDay(k); });
   $("#random-day").addEventListener("click", () => {
     const pool = dayKeys.filter((k) => ["away", "abroad", "fly"].includes(classify(k)));
     openDay(pool[Math.floor(Math.random() * pool.length)]);
@@ -998,5 +1011,5 @@ document.querySelectorAll(".stop").forEach((s) => io.observe(s));
 
 // the opening: light the years up one by one
 fit(worldBox, { maxZoom: 4, duration: 0 });
-setTimeout(replay, 600);
-tracks(); // warm the day tracks in the background
+// warm the day tracks once the opening replay is done, so parsing 2 MB of JSON doesn't stutter it
+setTimeout(() => replay().then(tracks), 600);
