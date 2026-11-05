@@ -514,7 +514,7 @@ function lifeHTML(h) {
   const bikeYears = allYears.filter((y) => (data.dist[y]?.CYCLING || 0) > 0);
   $("#move-prose").innerHTML = `
     <p>All of it adds up to <strong>${fmt(kmTotal)} km</strong>: ${(kmTotal / EARTH).toFixed(1)} times around the equator, or ${pct(kmTotal / MOON)} of the way to the Moon. <strong>${pct(air / kmTotal)}</strong> of that was in the air, so the blue arcs on the map carry most of the distance while the amber light holds most of the life.</p>
-    <p>On the ground, trains took you <strong>${fmt(train)} km</strong>. You cycled <strong>${fmt(bike)} km</strong>${bikeYears.length ? `, almost all of it after ${bikeYears.find((y) => data.dist[y].CYCLING > 100) || bikeYears[0]}. ${homes.at(-1).cc === "NL" ? ". That's very Dutch of you" : ""}` : ""}, and walked or ran another <strong>${fmt(walk)} km</strong>. ${topYear} was the year of motion, at ${fmt(topYearKm)} km.${personaName ? ` Even so, Google's own profile of you says you're ${personaName} first.` : ""}</p>
+    <p>On the ground, trains took you <strong>${fmt(train)} km</strong>. You cycled <strong>${fmt(bike)} km</strong>${bikeYears.length ? `, almost all of it after ${bikeYears.find((y) => data.dist[y].CYCLING > 100) || bikeYears[0]}${homes.at(-1).cc === "NL" ? ", which is very Dutch of you" : ""}` : ""}, and walked or ran another <strong>${fmt(walk)} km</strong>. ${topYear} was the year of motion, at ${fmt(topYearKm)} km.${personaName ? ` Even so, Google's own profile of you says you're ${personaName} first.` : ""}</p>
     <p class="caption">Each panel has its own scale, so read the shapes, not the heights between panels.</p>`;
   const wrap = $("#move-chart");
   for (const [name, modes, isAir] of groups) {
@@ -544,9 +544,10 @@ function lifeHTML(h) {
 
 /* ------------------------------------------------------------ rhythm */
 {
-  const months = Object.entries(data.months)
-    .map(([m, v]) => { const t = (v.home || 0) + (v.work || 0) + (v.out || 0) + (v.move || 0); return { m, t, share: (v.home || 0) / t, work: (v.work || 0) / t }; })
-    .filter((x) => x.t > 300 && x.m >= "2017");
+  const allMonths = Object.entries(data.months)
+    .map(([m, v]) => { const t = (v.home || 0) + (v.work || 0) + (v.out || 0) + (v.move || 0); return { m, t, share: (v.home || 0) / t, work: (v.work || 0) / t }; });
+  let months = allMonths.filter((x) => x.t > 300 && x.m >= "2017");
+  if (!months.length) months = allMonths.filter((x) => x.t > 0); // sparse timelines: better a noisy line than none
   const peak = months.reduce((a, b) => (b.share > a.share ? b : a));
   const avg = (arr) => arr.reduce((a, b) => a + b.share, 0) / arr.length;
   const pre = months.filter((x) => x.m >= "2017" && x.m < "2020-03");
@@ -556,7 +557,7 @@ function lifeHTML(h) {
   const peakHour = wk.indexOf(Math.max(...wk));
   const wkday = wk.slice(0, 120).reduce((a, b) => a + b, 0) / 120, wkend = wk.slice(120).reduce((a, b) => a + b, 0) / 48;
   $("#rhythm-prose").innerHTML = `
-    <p>Of all the hours Google could account for, the share spent at home tells its own story. Before 2020 it hovered around <strong>${pct(avg(pre))}</strong>. From March 2020 to mid-2021 it climbed to <strong>${pct(avg(lock))}</strong>, peaking in <strong>${monthYear(peak.m + "-01")}</strong> at ${pct(peak.share)}. Over the last year or so it sits at ${pct(avg(recent))}.</p>
+    <p>Of all the hours Google could account for, the share spent at home tells its own story. ${pre.length && lock.length ? `Before 2020 it hovered around <strong>${pct(avg(pre))}</strong>. From March 2020 to mid-2021 it climbed to <strong>${pct(avg(lock))}</strong>, peaking` : "It peaked"} in <strong>${monthYear(peak.m + "-01")}</strong> at ${pct(peak.share)}.${recent.length ? ` Over the last year or so it sits at ${pct(avg(recent))}.` : ""}</p>
     <p>Your most out-of-the-house hour of the week is <strong>${WEEKDAYS[Math.floor(peakHour / 24)]} around ${String(peakHour % 24).padStart(2, "0")}:00</strong>. ${wkend > wkday ? "Weekends pull you out more than weekdays do." : "Weekdays get you out more than weekends do."}</p>`;
 
   // home share line
@@ -734,7 +735,7 @@ const countryBoxes = {};
   const passed = cs.filter((c) => !c.stayed);
   $("#world-prose").innerHTML = `
     <p><strong>${cs.length} countries</strong>, listed in the order you first set foot (or wheel) in them. You properly stopped in ${stayed.length}${passed.length ? `. ${list(passed.map((c) => c.name))} only show up in passing, from a train window, a transfer, or high above` : ""}.</p>
-    <p><strong>${bestY}</strong> was the big year for new stamps: ${list(bestList)}. Outside the countries you've lived in, you spent the most days in <strong>${longestAbroad.name}</strong> (${longestAbroad.days}). The newest addition is <strong>${newest.name}</strong>, first seen on ${dayLong(newest.first)}.</p>`;
+    <p><strong>${bestY}</strong> was the big year for new stamps: ${list(bestList)}.${longestAbroad ? ` Outside the countries you've lived in, you spent the most days in <strong>${longestAbroad.name}</strong> (${longestAbroad.days}).` : ""} The newest addition is <strong>${newest.name}</strong>, first seen on ${dayLong(newest.first)}.</p>`;
   const maxD = Math.max(...cs.map((c) => c.days));
   const ol = $("#country-list");
   for (const c of cs) {
@@ -753,37 +754,40 @@ const countryBoxes = {};
 {
   const homeCCs = new Set(homes.map((h) => h.cc));
   const trips = data.trips.filter((t) => t.km >= 250 || t.ccs.some((c) => !homeCCs.has(c))).reverse();
-  const longest = trips.reduce((a, b) => (daysBetween(b.start, b.end) > daysBetween(a.start, a.end) ? b : a));
-  const farthest = trips.reduce((a, b) => (b.km > a.km ? b : a));
-  const perYear = {};
-  trips.forEach((t) => (perYear[t.start.slice(0, 4)] = (perYear[t.start.slice(0, 4)] || 0) + 1));
-  const [ty, tn] = Object.entries(perYear).reduce((a, b) => (b[1] > a[1] ? b : a));
-  $("#trips-prose").innerHTML = `
-    <p>Google bundled your time away into <strong>${trips.length} trips</strong> worth remembering. The farthest reached <strong>${fmt(farthest.km)} km</strong> from home (${list(farthest.cities.slice(0, 3))}, ${monthYear(farthest.start)}), and the longest lasted <strong>${daysBetween(longest.start, longest.end) + 1} days</strong>. ${ty} was the most packed, with ${tn} of them.</p>
-    <p class="caption">Pick a trip to trace it on the map.</p>`;
-  const ul = $("#trip-list");
-  for (const t of trips) {
-    const n = daysBetween(t.start, t.end) + 1;
-    const s = D(t.start), e = D(t.end);
-    const sameMonth = s.getUTCMonth() === e.getUTCMonth();
-    const when = n === 1 ? `${s.getUTCDate()} ${MONTHS[s.getUTCMonth()]}` : sameMonth ? `${s.getUTCDate()}–${e.getUTCDate()} ${MONTHS[s.getUTCMonth()]}` : `${s.getUTCDate()} ${MONTHS[s.getUTCMonth()]}–${e.getUTCDate()} ${MONTHS[e.getUTCMonth()]}`;
-    const li = document.createElement("li");
-    const b = html("button", { type: "button", "aria-pressed": "false" }, `
-      <span class="when"><b>${s.getUTCFullYear()}</b>${when}</span>
-      <span class="what">${list(t.cities.slice(0, 3))}<span>${n === 1 ? "A day" : `${n} days`}, up to ${fmt(t.km)} km from home</span></span>`);
-    b.addEventListener("click", () => {
-      press(b); setPins([]);
-      const segs = [];
-      for (let i = 1; i < t.path.length; i++) {
-        const a = t.path[i - 1], c = t.path[i];
-        const far = Math.hypot(a[0] - c[0], a[1] - c[1]) > 3;
-        segs.push({ type: "Feature", properties: { col: far ? C.contrail : C.sodium }, geometry: { type: "LineString", coordinates: far ? greatCircle(a, c, 24) : [a, c] } });
-      }
-      map.getSource("focus").setData(fc(segs));
-      map.getSource("focus-pts").setData(fc([]));
-      if (t.bbox) fit(t.bbox, { maxZoom: 11 });
-    });
-    li.append(b); ul.append(li);
+  if (!trips.length) $("[data-stop=trips]").remove();
+  else {
+    const longest = trips.reduce((a, b) => (daysBetween(b.start, b.end) > daysBetween(a.start, a.end) ? b : a));
+    const farthest = trips.reduce((a, b) => (b.km > a.km ? b : a));
+    const perYear = {};
+    trips.forEach((t) => (perYear[t.start.slice(0, 4)] = (perYear[t.start.slice(0, 4)] || 0) + 1));
+    const [ty, tn] = Object.entries(perYear).reduce((a, b) => (b[1] > a[1] ? b : a));
+    $("#trips-prose").innerHTML = `
+      <p>Google bundled your time away into <strong>${trips.length} trips</strong> worth remembering. The farthest reached <strong>${fmt(farthest.km)} km</strong> from home (${list(farthest.cities.slice(0, 3))}, ${monthYear(farthest.start)}), and the longest lasted <strong>${daysBetween(longest.start, longest.end) + 1} days</strong>. ${ty} was the most packed, with ${tn} of them.</p>
+      <p class="caption">Pick a trip to trace it on the map.</p>`;
+    const ul = $("#trip-list");
+    for (const t of trips) {
+      const n = daysBetween(t.start, t.end) + 1;
+      const s = D(t.start), e = D(t.end);
+      const sameMonth = s.getUTCMonth() === e.getUTCMonth();
+      const when = n === 1 ? `${s.getUTCDate()} ${MONTHS[s.getUTCMonth()]}` : sameMonth ? `${s.getUTCDate()}–${e.getUTCDate()} ${MONTHS[s.getUTCMonth()]}` : `${s.getUTCDate()} ${MONTHS[s.getUTCMonth()]}–${e.getUTCDate()} ${MONTHS[e.getUTCMonth()]}`;
+      const li = document.createElement("li");
+      const b = html("button", { type: "button", "aria-pressed": "false" }, `
+        <span class="when"><b>${s.getUTCFullYear()}</b>${when}</span>
+        <span class="what">${list(t.cities.slice(0, 3))}<span>${n === 1 ? "A day" : `${n} days`}, up to ${fmt(t.km)} km from home</span></span>`);
+      b.addEventListener("click", () => {
+        press(b); setPins([]);
+        const segs = [];
+        for (let i = 1; i < t.path.length; i++) {
+          const a = t.path[i - 1], c = t.path[i];
+          const far = Math.hypot(a[0] - c[0], a[1] - c[1]) > 3;
+          segs.push({ type: "Feature", properties: { col: far ? C.contrail : C.sodium }, geometry: { type: "LineString", coordinates: far ? greatCircle(a, c, 24) : [a, c] } });
+        }
+        map.getSource("focus").setData(fc(segs));
+        map.getSource("focus-pts").setData(fc([]));
+        if (t.bbox) fit(t.bbox, { maxZoom: 11 });
+      });
+      li.append(b); ul.append(li);
+    }
   }
 }
 
@@ -860,7 +864,7 @@ let selectedRect = null;
   });
 
   // on this day
-  const now = new Date(), md = key(now).slice(5);
+  const now = new Date(), md = `${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   $("#otd-title").textContent = `On ${now.getDate()} ${MONTHS[now.getMonth()]}, over the years`;
   const ul = $("#otd");
   for (let y = y1; y >= y0; y--) {

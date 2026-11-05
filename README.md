@@ -74,7 +74,7 @@ make serve
 
 - `pipeline/build.py` parses the export, geocodes it offline, and works out the homes, trips, flights, rhythm, records and per-day tracks.
 - `pipeline/enrich.py` names your homes and places with Nominatim and caches every answer. To use your own names for your homes, put them in `pipeline/home_names.json` (for example `{"1": {"name": "The first flat", "hood": "Old Town"}}`).
-- `make demo` regenerates the made-up demo person.
+- `make demo` regenerates the made-up demo person, and `make check` then checks that its Android and iPhone exports tell the same story.
 
 ## How it works
 
@@ -86,7 +86,7 @@ make serve
 | `web/app.js` | The scrolling story: MapLibre GL for the map and hand-built SVG charts |
 | `web/geo/cities.json` | 31k world cities from GeoNames for offline reverse geocoding |
 
-It works with the newer on-device Timeline format (`semanticSegments`, `rawSignals`, `userLocationProfile`), which is what phones export since Google moved Timeline off its servers in 2024.
+It works with the newer on-device Timeline format, which is what phones export since Google moved Timeline off its servers in 2024: the Android file (`semanticSegments`, `rawSignals`, `userLocationProfile`) and the iPhone file (a plain list of segments). The old Google Takeout files (`Records.json` and the `Semantic Location History` folder) aren't supported. The Python pipeline reads only the Android file.
 
 ## Credits
 

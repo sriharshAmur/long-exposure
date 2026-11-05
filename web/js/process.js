@@ -5,7 +5,7 @@
 const EARTH_KM = 6371.0088;
 const R = Math.PI / 180;
 
-const parseLL = (s) => { const [a, b] = s.replace(/°/g, "").split(","); return [+a, +b]; };
+const parseLL = (s) => { const [a, b] = s.replace(/geo:|°/g, "").split(","); return [+a, +b]; };
 const parseT = (s) => Date.parse(s) / 1000;
 const dayOf = (localTs) => new Date(localTs * 1000).toISOString().slice(0, 10);
 const round = (x, n = 0) => { const f = 10 ** n; return Math.round(x * f) / f; };
@@ -65,9 +65,35 @@ class Geo {
   row(i) { const g = this.g; return { name: g.name[i], cc: g.cc[i], lat: g.lat[i], lon: g.lon[i], pop: g.pop[i] }; }
 }
 
+/* The iPhone export is a bare array of segments with "geo:lat,lng" strings, numbers as strings,
+   lowercase labels and no offset fields. Reshape it into the Android layout the rest of the code reads. */
+function fromIPhone(arr) {
+  const off = (t) => { const m = /([+-])(\d\d):(\d\d)$/.exec(t || ""); return m ? (m[1] === "-" ? -1 : 1) * (60 * m[2] + +m[3]) : 0; };
+  const up = (s) => String(s || "unknown").toUpperCase().replace(/ /g, "_");
+  return { semanticSegments: arr.map((s) => {
+    const o = { startTime: s.startTime, endTime: s.endTime, startTimeTimezoneUtcOffsetMinutes: off(s.startTime) };
+    if (s.visit) {
+      const tc = s.visit.topCandidate || {};
+      o.visit = { hierarchyLevel: +s.visit.hierarchyLevel || 0, topCandidate: { placeId: tc.placeID ?? tc.placeId, semanticType: up(tc.semanticType), placeLocation: { latLng: tc.placeLocation } } };
+    } else if (s.activity) {
+      const a = s.activity;
+      o.activity = { start: { latLng: a.start }, end: { latLng: a.end }, distanceMeters: +a.distanceMeters || 0, topCandidate: { type: up(a.topCandidate?.type) } };
+    } else if (s.timelinePath) {
+      const t0 = Date.parse(s.startTime);
+      o.timelinePath = s.timelinePath.map((p) => ({ point: p.point, time: new Date(t0 + 6e4 * (+p.durationMinutesOffsetFromStartTime || 0)).toISOString() }));
+    } else if (s.timelineMemory) {
+      const m = s.timelineMemory;
+      o.timelineMemory = { trip: { distanceFromOriginKms: +m.distanceFromOriginKms || 0, destinations: (m.destinations || []).map((d) => ({ identifier: { placeId: d.identifier?.placeId ?? d.identifier } })) } };
+    }
+    return o;
+  }) };
+}
+
 export function processTimeline(raw, geoData, progress = () => {}) {
   const geo = new Geo(geoData);
-  const segs = (raw.semanticSegments || []).slice().sort((a, b) => (a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0));
+  if (Array.isArray(raw)) raw = fromIPhone(raw);
+  if (raw?.locations || raw?.timelineObjects) throw new Error("This looks like an old Google Takeout file (Records.json or Semantic Location History). Long Exposure reads the newer Timeline.json that you export from the Google Maps app on your phone.");
+  const segs = (raw?.semanticSegments || []).slice().sort((a, b) => (a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0));
   if (!segs.length) throw new Error("This file has no timeline segments. Make sure it's the Timeline.json exported from the Google Maps app.");
 
   const tzKnown = [];
@@ -98,7 +124,7 @@ export function processTimeline(raw, geoData, progress = () => {}) {
       obs.push([t0, la0, lo0, 2], [t1, la1, lo1, 2]);
     } else if (s.timelineMemory?.trip) {
       const tr = s.timelineMemory.trip;
-      memories.push({ t0: parseT(s.startTime), t1: parseT(s.endTime), tz: s.startTimeTimezoneUtcOffsetMinutes ?? 0, km: tr.distanceFromOriginKms, dest: (tr.destinations || []).map((d) => d.identifier?.placeId) });
+      memories.push({ t0: parseT(s.startTime), t1: parseT(s.endTime), tz: s.startTimeTimezoneUtcOffsetMinutes ?? tzAt(parseT(s.startTime)), km: tr.distanceFromOriginKms, dest: (tr.destinations || []).map((d) => d.identifier?.placeId) });
     }
   }
   for (const r of raw.rawSignals || []) if (r.position?.LatLng) { const [la, lo] = parseLL(r.position.LatLng); obs.push([parseT(r.position.timestamp), la, lo, 3]); }
@@ -147,6 +173,7 @@ export function processTimeline(raw, geoData, progress = () => {}) {
     } else folded.push(h);
   }
   homes = folded;
+  if (!homes.length) throw new Error("Couldn't find a home in this timeline. The story is built around where you sleep, so it needs at least five nights at a place Google marked as home. Very short timelines don't have that yet.");
   const homePts = homes.map((h) => [h.lat, h.lon]);
   const homeCityNames = new Set(homes.map((h) => h.city));
   const nearHome = (lat, lon, km) => homePts.some(([la, lo]) => hav(lat, lon, la, lo) < km);

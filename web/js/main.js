@@ -23,7 +23,12 @@ async function start(data, tracks, mode) {
   globalThis.__LE = { data, tracks: typeof tracks === "function" ? tracks : () => Promise.resolve(tracks), mode };
   $("#landing").classList.add("gone");
   document.body.classList.remove("on-landing");
-  await import("../app.js");
+  try { await import("../app.js"); } catch (e) {
+    // a story that can't be drawn would otherwise leave a blank map
+    console.error(e);
+    $("#landing").hidden = false; $("#landing").classList.remove("gone"); document.body.classList.add("on-landing");
+    return showError("Something in this timeline tripped up the story. Reload the page to try again.");
+  }
   setTimeout(() => $("#landing").remove(), 900);
 }
 
@@ -36,15 +41,21 @@ function show(step) {
   for (const el of document.querySelectorAll("[data-step]")) el.hidden = el.dataset.step !== step;
 }
 
+function showError(msg) {
+  show("drop"); $("#drop-error").textContent = msg; $("#drop-error").hidden = false;
+}
+
 function processFile(file) {
   show("working");
   $("#work-msg").textContent = "Opening the file";
   const w = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
   w.onmessage = ({ data: m }) => {
     if (m.type === "progress") $("#work-msg").textContent = m.msg;
-    if (m.type === "error") { w.terminate(); show("drop"); $("#drop-error").textContent = m.msg; $("#drop-error").hidden = false; }
+    if (m.type === "error") { w.terminate(); showError(m.msg); }
     if (m.type === "done") { w.terminate(); askNames(m.data, m.tracks); }
   };
+  // fires when the worker can't start or dies, usually from running out of memory on a huge file
+  w.onerror = () => { w.terminate(); showError("Your browser couldn't finish reading this file. If it's very large, try again in a desktop browser with fewer tabs open."); };
   w.postMessage(file);
 }
 

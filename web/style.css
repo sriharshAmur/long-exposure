@@ -319,11 +319,13 @@ body.on-landing { overflow: hidden; }
 .landing-lede { font-size: 21px; color: var(--dust); margin: 0 0 34px; }
 .dropzone {
   display: flex; flex-direction: column; gap: 6px; align-items: flex-start; cursor: pointer;
-  border: 1.5px dashed var(--line); border-radius: 12px; padding: 30px 28px;
+  position: relative; border: 1.5px dashed var(--line); border-radius: 12px; padding: 30px 28px;
   transition: border-color .2s, background .2s;
 }
 .dropzone:hover, .dropzone.over { border-color: var(--sodium); background: rgba(242,169,71,.06); }
 .dropzone:focus-within { outline: 2px solid var(--contrail); outline-offset: 3px; }
+/* visually hidden but still reachable with Tab, unlike [hidden] */
+.dropzone input { position: absolute; width: 1px; height: 1px; opacity: 0; outline: none; }
 .dz-big { font: 600 22px var(--display); letter-spacing: -0.02em; }
 .dz-small { color: var(--haze); font-style: italic; }
 .drop-error { color: #ffb4a8; margin: 12px 0 0; }

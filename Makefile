@@ -1,4 +1,4 @@
-.PHONY: setup data demo serve dist deploy
+.PHONY: setup data demo check serve dist deploy
 
 setup:
 	uv venv -q --python 3.12 .venv
@@ -12,6 +12,10 @@ data:
 
 build-only:
 	.venv/bin/python -I pipeline/build.py Timeline.json web/data
+
+# Android and iPhone exports of the made-up person must tell the same story (needs `make demo` first)
+check:
+	node examples/check_process.mjs
 
 serve:
 	@echo "open http://localhost:8765"
