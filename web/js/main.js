@@ -36,6 +36,7 @@ function loadMaplibre() {
 
 async function start(data, tracks, mode) {
   globalThis.__LE = { data, tracks: typeof tracks === "function" ? tracks : () => Promise.resolve(tracks), mode, maplibre: loadMaplibre };
+  if (!$("#landing").hidden) document.body.classList.add("from-landing");
   $("#landing").classList.add("gone");
   document.body.classList.remove("on-landing");
   try { await import("../app.js"); } catch (e) {

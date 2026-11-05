@@ -163,37 +163,59 @@ const facts = [
   [homes.length, "front doors"],
 ];
 $("#hero-facts").innerHTML = facts.map(([v, l]) => `<div><dt>${l}</dt><dd>${v}</dd></div>`).join("");
+// the replay opens on the first year with enough points to see; the dial shows it before the map fades in
+const firstYear = years.find((y) => data.heat[y]?.length >= 30) ?? years.at(-1);
+yearNum.textContent = reduceMotion ? years.at(-1) : firstYear;
+document.body.classList.add("story-ready"); // fades the hero in once it holds real numbers, instead of swapping text
 
 /* ------------------------------------------------------------ map */
+// recolour the basemap before MapLibre sees it, so its own grey never shows for a frame
+const STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+const styleP = fetch(STYLE).then((r) => r.json()).then(tint).catch(() => STYLE); // untinted beats no map
 // let the hero paint before MapLibre's 800 KB starts competing with it for the network (dropped files already started it)
 await new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
 await LE.maplibre();
 const map = new maplibregl.Map({
   container: "map",
-  style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-  bounds: [[-125, 5], [90, 60]],
+  style: await styleP,
   attributionControl: { compact: true },
   dragRotate: false, pitchWithRotate: false,
 });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 map.touchZoomRotate.disableRotation();
 
-function tint() {
-  for (const l of map.getStyle().layers) {
-    const id = l.id;
-    try {
-      if (l.type === "background") map.setPaintProperty(id, "background-color", C.ink);
-      else if (l.type === "fill") map.setPaintProperty(id, "fill-color", /water/.test(id) ? C.deep : /building/.test(id) ? "#18213f" : "#151e3b");
-      else if (l.type === "line") {
-        const c = /water|river/.test(id) ? C.deep : /boundary|admin/.test(id) ? "#34417a" : "#1f2a50";
-        map.setPaintProperty(id, "line-color", c);
-      } else if (l.type === "symbol") {
-        map.setPaintProperty(id, "text-color", /place|country|city/.test(id) ? "#7983ab" : "#545e88");
-        map.setPaintProperty(id, "text-halo-color", C.ink);
-      }
-    } catch { /* some layers have no such paint */ }
+function tint(style) {
+  for (const l of style.layers) {
+    const id = l.id, p = (l.paint ??= {});
+    if (l.type === "background") p["background-color"] = C.ink;
+    else if (l.type === "fill") p["fill-color"] = /water/.test(id) ? C.deep : /building/.test(id) ? "#18213f" : "#151e3b";
+    else if (l.type === "line") p["line-color"] = /water|river/.test(id) ? C.deep : /boundary|admin/.test(id) ? "#34417a" : "#1f2a50";
+    else if (l.type === "symbol") {
+      p["text-color"] = /place|country|city/.test(id) ? "#7983ab" : "#545e88";
+      p["text-halo-color"] = C.ink;
+    }
   }
+  return style;
 }
+
+// the camera's final framing is set before the first frame, so the opening never jumps
+const padding = () => narrow()
+  ? { top: 40, bottom: 40, left: 30, right: 30 }
+  : { top: 70, bottom: 70, left: $("#story").offsetWidth + 50, right: 90 };
+const bboxOf = (pts) => {
+  let w = 180, s = 90, e = -180, n = -90;
+  for (const [lo, la] of pts) { w = Math.min(w, lo); e = Math.max(e, lo); s = Math.min(s, la); n = Math.max(n, la); }
+  const pad = 0.02;
+  return [w - pad, s - pad, e + pad, n + pad];
+};
+const worldBox = bboxOf(cities.filter((c) => c.days > 0).map((c) => [c.lon, c.lat]));
+// which box fit() last framed; any other camera move (a fly, a drag, a resize) forgets it
+let framed = null;
+map.on("movestart", (e) => { framed = e.fit ?? null; });
+// the story column covers the left of the map: keep the camera's centre in the visible part
+map.setPadding(padding());
+addEventListener("resize", () => map.setPadding(padding()));
+fit(worldBox, { maxZoom: 4, duration: 0 });
 
 function greatCircle(a, b, n = 64) {
   const r = Math.PI / 180;
@@ -229,7 +251,6 @@ const homeFC = fc(homes.map((h, i) => ({ type: "Feature", properties: { i }, geo
 
 const mapReady = new Promise((res) => map.on("load", res));
 await mapReady;
-tint();
 map.addSource("heat", { type: "geojson", data: heatFC });
 map.addSource("arcs", { type: "geojson", data: arcFC });
 map.addSource("homes", { type: "geojson", data: homeFC });
@@ -279,6 +300,15 @@ map.addLayer({
   paint: { "circle-radius": 4, "circle-color": ["get", "col"], "circle-stroke-color": C.ink, "circle-stroke-width": 2 },
 });
 
+// the opening: the map starts at the first year and stays hidden until it has drawn itself fully, then fades in
+let opening = !reduceMotion;
+if (opening) setYear(+firstYear);
+const mapShown = new Promise((res) => {
+  const show = () => { document.body.classList.add("map-on"); res(); };
+  map.once("idle", show);
+  setTimeout(show, 3000); // shortcut: slow basemap tiles fade in when they arrive rather than holding the story
+});
+
 let dimmed = false;
 function dimLife(on) {
   if (on === dimmed) return;
@@ -301,27 +331,15 @@ function clearFocus() {
   map.getSource("focus-pts").setData(fc([]));
 }
 
-const padding = () => narrow()
-  ? { top: 40, bottom: 40, left: 30, right: 30 }
-  : { top: 70, bottom: 70, left: $("#story").offsetWidth + 50, right: 90 };
 function fit(bbox, opts = {}) {
-  const [w, s, e, n] = bbox;
-  map.fitBounds([[w, s], [e, n]], { padding: 24, maxZoom: opts.maxZoom ?? 12, duration: reduceMotion ? 0 : opts.duration ?? 2200, essential: true });
+  const [w, s, e, n] = bbox, o = { padding: 24, maxZoom: opts.maxZoom ?? 12 }, key = `${bbox}/${o.maxZoom}`;
+  // already framed (or on its way): at world zoom the map clamps latitude, so a refit would glide 2 s to where it already is
+  if (framed === key) return;
+  map.fitBounds([[w, s], [e, n]], { ...o, duration: reduceMotion ? 0 : opts.duration ?? 2200, essential: true }, { fit: key });
 }
 function flyTo(lon, lat, zoom, opts = {}) {
   map.flyTo({ center: [lon, lat], zoom, duration: reduceMotion ? 0 : opts.duration ?? 2400, essential: true, curve: 1.5 });
 }
-const bboxOf = (pts) => {
-  let w = 180, s = 90, e = -180, n = -90;
-  for (const [lo, la] of pts) { w = Math.min(w, lo); e = Math.max(e, lo); s = Math.min(s, la); n = Math.max(n, la); }
-  const pad = 0.02;
-  return [w - pad, s - pad, e + pad, n + pad];
-};
-// the story column covers the left of the map: keep the camera's centre in the visible part
-map.setPadding(padding());
-addEventListener("resize", () => map.setPadding(padding()));
-const worldBox = bboxOf(cities.filter((c) => c.days > 0).map((c) => [c.lon, c.lat]));
-
 /* pins: HTML markers with real typography */
 let pins = [];
 function setPins(items) {
@@ -341,10 +359,11 @@ async function replay() {
   if (reduceMotion) { setYear(null); yearNum.textContent = years.at(-1); replaying = false; return; }
   for (const y of years) {
     if (!data.heat[y] || data.heat[y].length < 30) continue; // skip near-empty years
+    if (activeStop && activeStop !== "hero") break; // scrolled on: that section owns the map now
     setYear(+y); yearNum.textContent = y;
     await new Promise((r) => setTimeout(r, 620));
   }
-  setYear(null);
+  if (!activeStop || activeStop === "hero") setYear(null);
   replaying = false;
 }
 $("#replay").addEventListener("click", () => { fit(worldBox, { maxZoom: 4 }); replay(); });
@@ -971,7 +990,7 @@ addEventListener("keydown", (e) => {
 const homeBox = bboxOf(homes.map((h) => [h.lon, h.lat]));
 const current = homes.at(-1);
 const stops = {
-  hero: () => { setPins([]); clearFocus(); dimLife(false); setYear(null); fit(worldBox, { maxZoom: 4 }); yearDial.classList.remove("off"); },
+  hero: () => { setPins([]); clearFocus(); dimLife(false); if (!opening && !replaying) setYear(null); fit(worldBox, { maxZoom: 4 }); yearDial.classList.remove("off"); },
   density: () => { setPins([]); clearFocus(); dimLife(false); fit(worldBox, { maxZoom: 4 }); yearDial.classList.add("off"); },
   homes: () => { clearFocus(); dimLife(false); setYear(null); yearDial.classList.add("off"); fit(homeBox, { maxZoom: 6 });
     const firstAbroad = homes.findIndex((h) => h.cc !== homes[0].cc);
@@ -1009,7 +1028,6 @@ const io = new IntersectionObserver((entries) => {
 }, { rootMargin: "-45% 0px -45% 0px" });
 document.querySelectorAll(".stop").forEach((s) => io.observe(s));
 
-// the opening: light the years up one by one
-fit(worldBox, { maxZoom: 4, duration: 0 });
+// the opening: once the map has faded in, light the years up one by one
 // warm the day tracks once the opening replay is done, so parsing 2 MB of JSON doesn't stutter it
-setTimeout(() => replay().then(tracks), 600);
+mapShown.then(() => setTimeout(() => replay().then(() => { opening = false; return tracks(); }), reduceMotion ? 0 : 700));
